@@ -63,32 +63,24 @@ io.on("connection", async (socket: Socket) => {
   });
   // --------------------------
 
-  socket.on("pullUpdates", (version: number) => {
+  socket.on("pullUpdates", (version: number, callback) => {
     const roomId = getRoomId(socket);
     if (+version < (+updates[roomId]?.length || 0)) {
-      // @ts-ignore
-      socket.emit("pullUpdateResponse", JSON.stringify(updates[roomId]?.slice(version) || []));
+      callback(JSON.stringify(updates[roomId]?.slice(version) || []));
     } else {
       if (!pending[roomId]) pending[roomId] = [];
       pending[roomId].push((updates) => {
-        socket.emit("pullUpdateResponse", JSON.stringify(updates || []));
+        callback(JSON.stringify(updates || []));
       });
     }
   });
 
-  socket.on("pushUpdates", (version, docUpdates) => {
+  socket.on("pushUpdates", (version, docUpdates, callback) => {
     const roomId = getRoomId(socket);
     docUpdates = JSON.parse(docUpdates);
     try {
-      console.log("UPDATE_DATA");
-      console.table({
-        roomId,
-        version,
-        length: updates[roomId]?.length,
-        updated: version == updates[roomId]?.length,
-      });
       if (version != updates[roomId]?.length) {
-        socket.emit("pushUpdateResponse", false);
+        callback(false);
       } else {
         for (let update of docUpdates) {
           // Convert the JSON representation to an actual ChangeSet
@@ -98,10 +90,11 @@ io.on("connection", async (socket: Socket) => {
           updates[roomId]?.push({ changes, clientID: update.clientID });
           doc[roomId] = changes.apply(doc[roomId]);
         }
-        socket.emit("pushUpdateResponse", true);
+        callback(true);
 
         while (pending[roomId].length) pending[roomId].pop()!(docUpdates);
       }
+      io.to(roomId).emit("codeUpdated", updates[roomId]?.length || 0, doc[roomId]?.toString());
     } catch (error) {
       console.error(error);
     }
@@ -111,12 +104,17 @@ io.on("connection", async (socket: Socket) => {
     socket.disconnect(true);
   });
 
-  socket.on("getDocument", () => {
-    const roomId = getRoomId(socket);
+  socket.on("getDocument", (roomId, callback) => {
+    if(!socket.rooms.has(roomId)) {
+      callback("You are not allowed to access this document");
+      return;
+    }
+
     if (!updates[roomId]) {
       updates[roomId] = [];
     }
-    socket.emit("getDocumentResponse", updates[roomId]?.length || 0, doc[roomId]?.toString());
+
+    callback(updates[roomId]?.length || 0, doc[roomId]?.toString());
   });
 });
 
