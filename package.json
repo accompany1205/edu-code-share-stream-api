@@ -12,7 +12,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@codemirror/collab": "^6.0.0",
+    "@codemirror/collab": "^6.1.1",
     "@codemirror/state": "^6.2.0",
     "aws-sdk": "^2.1373.0",
     "dotenv": "^16.0.3",
