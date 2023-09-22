@@ -6,7 +6,7 @@ import dotenv from "dotenv";
 import * as _ from "lodash";
 
 import { ChangeSet, Text } from "@codemirror/state";
-import { Update } from "@codemirror/collab";
+import {rebaseUpdates, Update} from "@codemirror/collab";
 
 dotenv.config();
 
@@ -38,11 +38,16 @@ const io = new Server(server, {
 
 io.on("connection", async (socket: Socket) => {
   // student can use it only
-  socket.on("create", (roomId: string) => {
+  socket.on("create", (roomId: string, callback: (created: boolean) => void) => {
     console.log(roomId, "SET ROOM ID");
+    socket.join(roomId);
+    if(doc[roomId] !== undefined) {
+      if(callback) callback(false);
+      return;
+    }
     doc[roomId] = Text.of([""]);
     updates[roomId] = [];
-    socket.join(roomId);
+    if(callback) callback(true);
   });
 
   socket.on("deleteRoom", (roomId: string) => {
@@ -63,45 +68,41 @@ io.on("connection", async (socket: Socket) => {
   });
   // --------------------------
 
-  socket.on("pullUpdates", (version: number) => {
-    const roomId = getRoomId(socket);
+  socket.on("pullUpdates", (roomId: string, version: number, callback) => {
+    if(!socket.rooms.has(roomId)) {
+      callback(new Error("You are not allowed to access this document"));
+      return;
+    }
     if (+version < (+updates[roomId]?.length || 0)) {
-      // @ts-ignore
-      socket.emit("pullUpdateResponse", JSON.stringify(updates[roomId]?.slice(version) || []));
+      callback(JSON.stringify(updates[roomId]?.slice(version) || []));
     } else {
-      if (!pending[roomId]) pending[roomId] = [];
-      pending[roomId].push((updates) => {
-        socket.emit("pullUpdateResponse", JSON.stringify(updates || []));
-      });
+      callback(JSON.stringify([]));
     }
   });
 
-  socket.on("pushUpdates", (version, docUpdates) => {
-    const roomId = getRoomId(socket);
+  socket.on("pushUpdates", (roomId: string, version, docUpdates, callback) => {
+    if(!socket.rooms.has(roomId)) {
+      callback(new Error("You are not allowed to access this document"));
+      return;
+    }
     docUpdates = JSON.parse(docUpdates);
     try {
-      console.log("UPDATE_DATA");
-      console.table({
-        roomId,
-        version,
-        length: updates[roomId]?.length,
-        updated: version == updates[roomId]?.length,
-      });
       if (version != updates[roomId]?.length) {
-        socket.emit("pushUpdateResponse", false);
-      } else {
-        for (let update of docUpdates) {
-          // Convert the JSON representation to an actual ChangeSet
-          // instance
-          let changes = ChangeSet.fromJSON(update.changes);
-          // @ts-ignore
-          updates[roomId]?.push({ changes, clientID: update.clientID });
-          doc[roomId] = changes.apply(doc[roomId]);
-        }
-        socket.emit("pushUpdateResponse", true);
-
-        while (pending[roomId].length) pending[roomId].pop()!(docUpdates);
+        docUpdates = rebaseUpdates(docUpdates, updates[roomId].slice(version))
       }
+      const updatesToSend: Update[] = [];
+      for (let update of docUpdates) {
+        // Convert the JSON representation to an actual ChangeSet
+        // instance
+        let changes = ChangeSet.fromJSON(update.changes);
+        const u: Update = { changes, clientID: update.clientID };
+        updates[roomId]?.push(u);
+        updatesToSend.push(u);
+        doc[roomId] = changes.apply(doc[roomId]);
+      }
+      callback(true, updatesToSend);
+
+      io.to(roomId).emit("codeUpdated", socket.id, updates[roomId]?.length || 0, doc[roomId]?.toString());
     } catch (error) {
       console.error(error);
     }
@@ -111,12 +112,17 @@ io.on("connection", async (socket: Socket) => {
     socket.disconnect(true);
   });
 
-  socket.on("getDocument", () => {
-    const roomId = getRoomId(socket);
+  socket.on("getDocument", (roomId, callback) => {
+    if(!socket.rooms.has(roomId)) {
+      callback("You are not allowed to access this document");
+      return;
+    }
+
     if (!updates[roomId]) {
       updates[roomId] = [];
     }
-    socket.emit("getDocumentResponse", updates[roomId]?.length || 0, doc[roomId]?.toString());
+
+    callback(updates[roomId]?.length || 0, doc[roomId]?.toString());
   });
 });
 
