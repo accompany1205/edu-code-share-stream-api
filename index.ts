@@ -5,7 +5,7 @@ import { Server, Socket } from "socket.io";
 import dotenv from "dotenv";
 import * as _ from "lodash";
 
-import { ChangeSet, Text } from "@codemirror/state";
+import {ChangeSet, StateEffect, Text} from "@codemirror/state";
 import {rebaseUpdates, Update} from "@codemirror/collab";
 
 dotenv.config();
@@ -95,7 +95,7 @@ io.on("connection", async (socket: Socket) => {
         // Convert the JSON representation to an actual ChangeSet
         // instance
         let changes = ChangeSet.fromJSON(update.changes);
-        const u: Update = { changes, clientID: update.clientID };
+        const u: Update = { changes, clientID: update.clientID, effects: update.effects };
         updates[roomId]?.push(u);
         updatesToSend.push(u);
         doc[roomId] = changes.apply(doc[roomId]);
