@@ -24,7 +24,7 @@ export class ActivityManager {
     return socketActivity;
   }
 
-  public destroySocketActivity(socketId: string) {
+  private destroySocketActivity(socketId: string) {
     delete this.socketActivity[socketId];
   }
 }
@@ -60,6 +60,10 @@ export class SocketActivity {
     } else {
       return ActivityStatus.AWAY;
     }
+  }
+
+  public destroy() {
+    this.onDisconnect();
   }
 
   private updateActivityStatus() {
