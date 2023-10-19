@@ -26,19 +26,6 @@ let updates: { [key: string]: Update[] } = {};
 let doc: { [key: string]: Text } = {};
 let pending: { [key: string]: ((value: any) => void)[] } = {};
 
-enum ActivityStatus {
-  // Activity in the past <2 minutes
-  ACTIVE = "ACTIVE",
-  // Activity in the past <5 minutes
-  INACTIVE = "INACTIVE",
-  // Activity in the past <15 minutes
-  IDLE = "IDLE",
-  // No activity in the past >15 minutes
-  AWAY = "AWAY",
-}
-
-let lastActivity: { [socketId: string]: number } = {};
-
 const getRoomId = (socket: Socket) => Array.from(socket.rooms)[1];
 
 const io = new Server(server, {
@@ -48,39 +35,6 @@ const io = new Server(server, {
     methods: ["GET", "POST"],
   },
 });
-
-function getActivityStatus(socket: Socket): ActivityStatus {
-  const now = Date.now();
-  const lastActivityTime = lastActivity[socket.id];
-  if (lastActivityTime === undefined) {
-    return ActivityStatus.AWAY;
-  }
-  const timeDiff = now - lastActivityTime;
-  if (timeDiff < 1000 * 60 * 2) {
-    return ActivityStatus.ACTIVE;
-  } else if (timeDiff < 1000 * 60 * 5) {
-    return ActivityStatus.INACTIVE;
-  } else if (timeDiff < 1000 * 60 * 15) {
-    return ActivityStatus.IDLE;
-  } else {
-    return ActivityStatus.AWAY;
-  }
-}
-
-function updateActivityStatus(socket: Socket) {
-  const status = getActivityStatus(socket);
-  socket.rooms.forEach((roomId) => {
-    io.to(roomId).emit("activityStatus", socket.id, status);
-  });
-}
-
-function updateActivity(socket: Socket) {
-  lastActivity[socket.id] = Date.now();
-}
-
-function deleteActivity(socket: Socket) {
-  delete lastActivity[socket.id];
-}
 
 io.on("connection", async (socket: Socket) => {
   // student can use it only
