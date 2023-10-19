@@ -7,6 +7,8 @@ import * as _ from "lodash";
 
 import { ChangeSet, StateEffect, Text } from "@codemirror/state";
 import { rebaseUpdates, Update } from "@codemirror/collab";
+import { ActivityManager, ActivityStatus } from "./activity";
+import { PermissionError } from "./errors/permission-error";
 
 dotenv.config();
 
@@ -36,7 +38,11 @@ const io = new Server(server, {
   },
 });
 
+const activityManager = new ActivityManager(io);
+
 io.on("connection", async (socket: Socket) => {
+  const socketActivity = activityManager.initialize(socket);
+
   // student can use it only
   socket.on(
     "create",
@@ -136,6 +142,35 @@ io.on("connection", async (socket: Socket) => {
 
     callback(updates[roomId]?.length || 0, doc[roomId]?.toString());
   });
+
+  socket.on("getOwnActivityStatus", (callback) => {
+    callback(socketActivity.getActivityStatus());
+  });
+
+  socket.on(
+    "getActivityStatus",
+    async (
+      roomId: string,
+      callback: (status: ActivityStatus[] | PermissionError) => void,
+    ) => {
+      if (!socket.rooms.has(roomId)) {
+        callback({
+          error: "PERMISSION_ERROR",
+          message:
+            "You are not allowed to check the activity status of this room",
+        });
+        return;
+      }
+
+      callback(
+        (await io.in(roomId).fetchSockets())
+          .map(
+            (s) => activityManager.getSocketActivity(s.id)?.getActivityStatus(),
+          )
+          .filter((s): s is ActivityStatus => s !== undefined),
+      );
+    },
+  );
 });
 
 app.get("/health", (req: Request, res: Response) => {

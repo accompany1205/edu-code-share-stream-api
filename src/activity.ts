@@ -1,6 +1,6 @@
 import { Server, Socket } from "socket.io";
 
-enum ActivityStatus {
+export enum ActivityStatus {
   // Activity in the past <2 minutes
   ACTIVE = "ACTIVE",
   // Activity in the past <5 minutes
@@ -22,6 +22,10 @@ export class ActivityManager {
     });
     this.socketActivity[socket.id] = socketActivity;
     return socketActivity;
+  }
+
+  public getSocketActivity(socketId: string): SocketActivity | undefined {
+    return this.socketActivity[socketId];
   }
 
   private destroySocketActivity(socketId: string) {
