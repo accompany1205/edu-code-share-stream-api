@@ -12,13 +12,41 @@ enum ActivityStatus {
 }
 
 export class ActivityManager {
-  private lastActivity: { [socketId: string]: number } = {};
+  private socketActivity: { [socketId: string]: SocketActivity } = {};
 
   public constructor(private readonly io: Server) {}
 
-  public getActivityStatus(socket: Socket): ActivityStatus {
+  public initialize(socket: Socket) {
+    const socketActivity = new SocketActivity(this.io, socket, () => {
+      this.destroySocketActivity(socket.id);
+    });
+    this.socketActivity[socket.id] = socketActivity;
+    return socketActivity;
+  }
+
+  public destroySocketActivity(socketId: string) {
+    delete this.socketActivity[socketId];
+  }
+}
+
+export class SocketActivity {
+  private lastActivity: number;
+
+  public constructor(
+    private readonly io: Server,
+    public readonly socket: Socket,
+    private readonly destroyHandler?: () => void,
+  ) {
+    this.lastActivity = Date.now();
+
+    socket.on("disconnect", this.onDisconnect);
+    // Only update activity when the user is pushing updates (i.e. typing)
+    socket.on("pushUpdates", this.onPushUpdates);
+  }
+
+  public getActivityStatus(): ActivityStatus {
     const now = Date.now();
-    const lastActivityTime = this.lastActivity[socket.id];
+    const lastActivityTime = this.lastActivity;
     if (lastActivityTime === undefined) {
       return ActivityStatus.AWAY;
     }
@@ -34,18 +62,24 @@ export class ActivityManager {
     }
   }
 
-  public updateActivityStatus(socket: Socket) {
-    const status = this.getActivityStatus(socket);
-    socket.rooms.forEach((roomId) => {
-      this.io.to(roomId).emit("activityStatus", socket.id, status);
+  private updateActivityStatus() {
+    const status = this.getActivityStatus();
+    this.socket.rooms.forEach((roomId) => {
+      this.io.to(roomId).emit("activityStatus", this.socket.id, status);
     });
   }
 
-  public updateActivity(socket: Socket) {
-    this.lastActivity[socket.id] = Date.now();
+  private updateActivity() {
+    this.lastActivity = Date.now();
   }
 
-  public deleteActivity(socket: Socket) {
-    delete this.lastActivity[socket.id];
+  private onPushUpdates() {
+    this.updateActivity();
+  }
+
+  private onDisconnect() {
+    this.socket.off("disconnect", this.onDisconnect);
+    this.socket.off("pushUpdates", this.onPushUpdates);
+    this.destroyHandler?.();
   }
 }
