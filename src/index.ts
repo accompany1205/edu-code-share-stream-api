@@ -60,6 +60,15 @@ io.on("connection", async (socket: Socket) => {
     },
   );
 
+  socket.on("joinLesson", async (lessonId: string) => {
+    socket.join(lessonId);
+    socket.emit(
+      "activityStatusAvailable",
+      lessonId,
+      await activityManager.getRoomActivity(lessonId),
+    );
+  });
+
   socket.on("deleteRoom", (roomId: string) => {
     socket.leave(roomId);
     delete doc[roomId];
@@ -163,19 +172,7 @@ io.on("connection", async (socket: Socket) => {
         return;
       }
 
-      callback(
-        Object.fromEntries<ActivityStatus>(
-          (await io.in(roomId).fetchSockets())
-            .map(
-              (s) =>
-                [
-                  s.id,
-                  activityManager.getSocketActivity(s.id)?.getActivityStatus(),
-                ] as const,
-            )
-            .filter((e): e is [string, ActivityStatus] => e[1] !== undefined),
-        ),
-      );
+      callback(await activityManager.getRoomActivity(roomId));
     },
   );
 });

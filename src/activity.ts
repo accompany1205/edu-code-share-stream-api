@@ -32,6 +32,17 @@ export class ActivityManager {
     return this.socketActivity[socketId];
   }
 
+  public async getRoomActivity(roomId: string) {
+    return Object.fromEntries<ActivityStatus>(
+      (await this.io.in(roomId).fetchSockets())
+        .map(
+          (s) =>
+            [s.id, this.getSocketActivity(s.id)?.getActivityStatus()] as const,
+        )
+        .filter((e): e is [string, ActivityStatus] => e[1] !== undefined),
+    );
+  }
+
   private destroySocketActivity(socketId: string) {
     delete this.socketActivity[socketId];
   }
@@ -117,13 +128,13 @@ export class SocketActivity {
     }, this.calculateNextActivityStatusUpdate());
   }
 
-  private onPushUpdates() {
+  private onPushUpdates = () => {
     this.updateActivity();
-  }
+  };
 
-  private onDisconnect() {
+  private onDisconnect = () => {
     this.socket.off("disconnect", this.onDisconnect);
     this.socket.off("pushUpdates", this.onPushUpdates);
     this.destroyHandler?.();
-  }
+  };
 }
