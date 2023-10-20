@@ -62,7 +62,6 @@ export class SocketActivity {
     private readonly destroyHandler?: () => void,
   ) {
     this.updateActivity();
-    this.updateActivityStatus();
 
     socket.on("disconnect", this.onDisconnect);
     // Only update activity when the user is pushing updates (i.e. typing)
@@ -99,7 +98,11 @@ export class SocketActivity {
   }
 
   private updateActivity() {
+    const previousStatus = this.getActivityStatus();
     this.lastActivity = Date.now();
+    if (previousStatus !== ActivityStatus.ACTIVE) {
+      this.updateActivityStatus();
+    }
     this.startAutoActivityStatusUpdate();
   }
 
