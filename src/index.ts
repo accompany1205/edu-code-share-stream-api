@@ -9,6 +9,7 @@ import { ChangeSet, StateEffect, Text } from "@codemirror/state";
 import { rebaseUpdates, Update } from "@codemirror/collab";
 import { ActivityManager, ActivityStatus } from "./activity";
 import { PermissionError } from "./errors/permission-error";
+import { RoomActivity } from "./types/room-activity";
 
 dotenv.config();
 
@@ -151,7 +152,7 @@ io.on("connection", async (socket: Socket) => {
     "getActivityStatus",
     async (
       roomId: string,
-      callback: (status: ActivityStatus[] | PermissionError) => void,
+      callback: (status: RoomActivity | PermissionError) => void,
     ) => {
       if (!socket.rooms.has(roomId)) {
         callback({
@@ -163,11 +164,17 @@ io.on("connection", async (socket: Socket) => {
       }
 
       callback(
-        (await io.in(roomId).fetchSockets())
-          .map(
-            (s) => activityManager.getSocketActivity(s.id)?.getActivityStatus(),
-          )
-          .filter((s): s is ActivityStatus => s !== undefined),
+        Object.fromEntries<ActivityStatus>(
+          (await io.in(roomId).fetchSockets())
+            .map(
+              (s) =>
+                [
+                  s.id,
+                  activityManager.getSocketActivity(s.id)?.getActivityStatus(),
+                ] as const,
+            )
+            .filter((e): e is [string, ActivityStatus] => e[1] !== undefined),
+        ),
       );
     },
   );
