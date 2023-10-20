@@ -1,3 +1,3 @@
 import { ActivityStatus } from "../activity";
 
-export type RoomActivity = { [socketId: string]: ActivityStatus };
+export type RoomActivity = { [userId: string]: ActivityStatus };

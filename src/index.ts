@@ -39,6 +39,15 @@ const io = new Server(server, {
   },
 });
 
+io.use((socket, next) => {
+  if (!socket.handshake.auth.userId) {
+    const err = new Error("Not authorized");
+    next(err);
+  } else {
+    next();
+  }
+});
+
 const activityManager = new ActivityManager(io);
 
 io.on("connection", async (socket: Socket) => {

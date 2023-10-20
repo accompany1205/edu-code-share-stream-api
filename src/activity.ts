@@ -1,4 +1,5 @@
 import { Server, Socket } from "socket.io";
+import { getUserId } from "./utils/socket-to-user-id";
 
 const ACTIVE_TIME = 1000 * 60 * 2;
 const INACTIVE_TIME = 1000 * 60 * 5;
@@ -16,20 +17,20 @@ export enum ActivityStatus {
 }
 
 export class ActivityManager {
-  private socketActivity: { [socketId: string]: SocketActivity } = {};
+  private socketActivity: { [userId: string]: SocketActivity } = {};
 
   public constructor(private readonly io: Server) {}
 
   public initialize(socket: Socket) {
     const socketActivity = new SocketActivity(this.io, socket, () => {
-      this.destroySocketActivity(socket.id);
+      this.destroySocketActivity(getUserId(socket));
     });
-    this.socketActivity[socket.id] = socketActivity;
+    this.socketActivity[getUserId(socket)] = socketActivity;
     return socketActivity;
   }
 
-  public getSocketActivity(socketId: string): SocketActivity | undefined {
-    return this.socketActivity[socketId];
+  public getSocketActivity(userId: string): SocketActivity | undefined {
+    return this.socketActivity[userId];
   }
 
   public async getRoomActivity(roomId: string) {
@@ -37,14 +38,17 @@ export class ActivityManager {
       (await this.io.in(roomId).fetchSockets())
         .map(
           (s) =>
-            [s.id, this.getSocketActivity(s.id)?.getActivityStatus()] as const,
+            [
+              getUserId(s),
+              this.getSocketActivity(getUserId(s))?.getActivityStatus(),
+            ] as const,
         )
         .filter((e): e is [string, ActivityStatus] => e[1] !== undefined),
     );
   }
 
-  private destroySocketActivity(socketId: string) {
-    delete this.socketActivity[socketId];
+  private destroySocketActivity(userId: string) {
+    delete this.socketActivity[userId];
   }
 }
 
@@ -58,6 +62,7 @@ export class SocketActivity {
     private readonly destroyHandler?: () => void,
   ) {
     this.updateActivity();
+    this.updateActivityStatus();
 
     socket.on("disconnect", this.onDisconnect);
     // Only update activity when the user is pushing updates (i.e. typing)
@@ -89,7 +94,7 @@ export class SocketActivity {
   private updateActivityStatus() {
     const status = this.getActivityStatus();
     this.socket.rooms.forEach((roomId) => {
-      this.io.to(roomId).emit("activityStatus", this.socket.id, status);
+      this.io.to(roomId).emit("activityStatus", getUserId(this.socket), status);
     });
   }
 
