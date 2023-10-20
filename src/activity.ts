@@ -1,5 +1,9 @@
 import { Server, Socket } from "socket.io";
 
+const ACTIVE_TIME = 1000 * 60 * 2;
+const INACTIVE_TIME = 1000 * 60 * 5;
+const IDLE_TIME = 1000 * 60 * 15;
+
 export enum ActivityStatus {
   // Activity in the past <2 minutes
   ACTIVE = "ACTIVE",
@@ -34,14 +38,15 @@ export class ActivityManager {
 }
 
 export class SocketActivity {
-  private lastActivity: number;
+  private lastActivity: number | undefined;
+  private activityStatusUpdateTimeout: NodeJS.Timeout | undefined;
 
   public constructor(
     private readonly io: Server,
     public readonly socket: Socket,
     private readonly destroyHandler?: () => void,
   ) {
-    this.lastActivity = Date.now();
+    this.updateActivity();
 
     socket.on("disconnect", this.onDisconnect);
     // Only update activity when the user is pushing updates (i.e. typing)
@@ -52,14 +57,14 @@ export class SocketActivity {
     const now = Date.now();
     const lastActivityTime = this.lastActivity;
     if (lastActivityTime === undefined) {
-      return ActivityStatus.AWAY;
+      return ActivityStatus.ACTIVE;
     }
     const timeDiff = now - lastActivityTime;
-    if (timeDiff < 1000 * 60 * 2) {
+    if (timeDiff < ACTIVE_TIME) {
       return ActivityStatus.ACTIVE;
-    } else if (timeDiff < 1000 * 60 * 5) {
+    } else if (timeDiff < INACTIVE_TIME) {
       return ActivityStatus.INACTIVE;
-    } else if (timeDiff < 1000 * 60 * 15) {
+    } else if (timeDiff < IDLE_TIME) {
       return ActivityStatus.IDLE;
     } else {
       return ActivityStatus.AWAY;
@@ -79,6 +84,37 @@ export class SocketActivity {
 
   private updateActivity() {
     this.lastActivity = Date.now();
+    this.startAutoActivityStatusUpdate();
+  }
+
+  private calculateNextActivityStatusUpdate() {
+    const now = Date.now();
+    const lastActivityTime = this.lastActivity;
+    if (lastActivityTime === undefined) {
+      return ACTIVE_TIME;
+    }
+    const timeDiff = now - lastActivityTime;
+    if (timeDiff < ACTIVE_TIME) {
+      return ACTIVE_TIME - timeDiff;
+    } else if (timeDiff < INACTIVE_TIME) {
+      return INACTIVE_TIME - timeDiff;
+    } else if (timeDiff < IDLE_TIME) {
+      return IDLE_TIME - timeDiff;
+    } else {
+      return 0;
+    }
+  }
+
+  private startAutoActivityStatusUpdate() {
+    if (this.activityStatusUpdateTimeout) {
+      clearTimeout(this.activityStatusUpdateTimeout);
+    }
+    this.activityStatusUpdateTimeout = setTimeout(() => {
+      this.updateActivityStatus();
+      if (this.getActivityStatus() !== ActivityStatus.AWAY) {
+        this.startAutoActivityStatusUpdate();
+      }
+    }, this.calculateNextActivityStatusUpdate());
   }
 
   private onPushUpdates() {
