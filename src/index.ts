@@ -172,7 +172,7 @@ io.on("connection", async (socket: Socket) => {
       roomId: string,
       callback: (status: RoomActivity | PermissionError) => void,
     ) => {
-      if (!socket.rooms.has(roomId)) {
+      if (!socket.rooms.has(roomId) && roomId !== "all") {
         callback({
           error: "PERMISSION_ERROR",
           message:
@@ -181,7 +181,11 @@ io.on("connection", async (socket: Socket) => {
         return;
       }
 
-      callback(await activityManager.getRoomActivity(roomId));
+      callback(
+        await activityManager.getRoomActivity(
+          roomId === "all" ? [...socket.rooms] : roomId,
+        ),
+      );
     },
   );
 });

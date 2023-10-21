@@ -33,7 +33,7 @@ export class ActivityManager {
     return this.socketActivity[userId];
   }
 
-  public async getRoomActivity(roomId: string) {
+  public async getRoomActivity(roomId: string | string[]) {
     return Object.fromEntries<ActivityStatus>(
       (await this.io.in(roomId).fetchSockets())
         .map(
