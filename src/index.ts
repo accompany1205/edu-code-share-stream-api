@@ -65,7 +65,9 @@ const activityManager = new ActivityManager(io);
 let databaseEnabled = false;
 
 mongoose
-  .connect(process.env.MONGODB_URI || "", {})
+  .connect(process.env.MONGODB_URI || "", {
+    dbName: "codetribe",
+  })
   .then(() => {
     console.log("Database connection successful. Code saving enabled!");
     databaseEnabled = true;
