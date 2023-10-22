@@ -11,7 +11,7 @@ import { PermissionError } from "./errors/permission-error";
 import { RoomActivity } from "./types/room-activity";
 import { getUserId } from "./utils/socket-to-user-id";
 import { LessonCode } from "./db/models/lesson-code";
-import { Types } from "mongoose";
+import mongoose, { Types } from "mongoose";
 
 dotenv.config();
 
@@ -63,6 +63,19 @@ io.use((socket, next) => {
 const activityManager = new ActivityManager(io);
 
 let databaseEnabled = false;
+
+mongoose
+  .connect(process.env.MONGODB_URI || "", {})
+  .then(() => {
+    console.log("Database connection successful. Code saving enabled!");
+    databaseEnabled = true;
+  })
+  .catch((e) => {
+    console.warn(
+      "Database connection failed, database features will be disabled. Error:",
+      e.message,
+    );
+  });
 
 io.on("connection", async (socket: Socket) => {
   const socketActivity = activityManager.initialize(socket);
