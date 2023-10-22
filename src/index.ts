@@ -3,13 +3,15 @@ import cors from "cors";
 import http from "http";
 import { Server, Socket } from "socket.io";
 import dotenv from "dotenv";
-import * as _ from "lodash";
 
-import { ChangeSet, StateEffect, Text } from "@codemirror/state";
+import { ChangeSet, Text } from "@codemirror/state";
 import { rebaseUpdates, Update } from "@codemirror/collab";
-import { ActivityManager, ActivityStatus } from "./activity";
+import { ActivityManager } from "./activity";
 import { PermissionError } from "./errors/permission-error";
 import { RoomActivity } from "./types/room-activity";
+import { getUserId } from "./utils/socket-to-user-id";
+import { LessonCode } from "./db/models/lesson-code";
+import { Types } from "mongoose";
 
 dotenv.config();
 
@@ -29,7 +31,17 @@ let updates: { [key: string]: Update[] } = {};
 let doc: { [key: string]: Text } = {};
 let pending: { [key: string]: ((value: any) => void)[] } = {};
 
-const getRoomId = (socket: Socket) => Array.from(socket.rooms)[1];
+const roomMetadata: {
+  [roomId: string]: {
+    owner: string;
+    lessonId: string;
+    lessonCodeId: Types.ObjectId | undefined;
+  };
+} = {};
+
+const pendingLessonCodeUpdates: {
+  [lessonCodeId: string]: NodeJS.Timeout;
+} = {};
 
 const io = new Server(server, {
   path: "/",
@@ -50,20 +62,61 @@ io.use((socket, next) => {
 
 const activityManager = new ActivityManager(io);
 
+let databaseEnabled = false;
+
 io.on("connection", async (socket: Socket) => {
   const socketActivity = activityManager.initialize(socket);
 
   // student can use it only
   socket.on(
     "create",
-    (roomId: string, callback: (created: boolean) => void) => {
-      console.log(roomId, "SET ROOM ID");
+    async (
+      roomId: string,
+      lessonId: string,
+      initialCode: string | undefined,
+      callback: (created: boolean) => void,
+    ) => {
+      console.log("Create room", roomId, "with lesson id", lessonId);
+      const userId = getUserId(socket);
+      let lessonCodeId: Types.ObjectId | undefined = undefined;
+      let lessonCode: string = initialCode ?? "";
+      if (databaseEnabled) {
+        try {
+          const existingLessonCode = await LessonCode.findOne({
+            userId,
+            lessonId,
+          }).exec();
+          if (existingLessonCode) {
+            lessonCodeId = existingLessonCode._id;
+            if (existingLessonCode.code) {
+              lessonCode = existingLessonCode.code;
+            } else if (initialCode !== undefined) {
+              existingLessonCode.code = initialCode;
+              await existingLessonCode.save();
+            }
+          } else {
+            lessonCodeId = (
+              await LessonCode.create({
+                userId,
+                lessonId,
+                code: lessonCode,
+              })
+            )._id;
+          }
+        } catch (e) {
+          console.warn(
+            `Database connection seems to be broken, the code of the lesson with id ${lessonId} will not be saved for the user with id ${userId}`,
+            e,
+          );
+        }
+      }
+      roomMetadata[roomId] = { owner: userId, lessonId, lessonCodeId };
       socket.join(roomId);
       if (doc[roomId] !== undefined) {
         if (callback) callback(false);
         return;
       }
-      doc[roomId] = Text.of([""]);
+      doc[roomId] = Text.of([lessonCode]);
       updates[roomId] = [];
       if (callback) callback(true);
     },
@@ -108,42 +161,75 @@ io.on("connection", async (socket: Socket) => {
     }
   });
 
-  socket.on("pushUpdates", (roomId: string, version, docUpdates, callback) => {
-    if (!socket.rooms.has(roomId)) {
-      callback(new Error("You are not allowed to access this document"));
-      return;
-    }
-    docUpdates = JSON.parse(docUpdates);
-    try {
-      if (version != updates[roomId]?.length) {
-        docUpdates = rebaseUpdates(docUpdates, updates[roomId].slice(version));
+  socket.on(
+    "pushUpdates",
+    async (roomId: string, version, docUpdates, callback) => {
+      if (!socket.rooms.has(roomId)) {
+        callback(new Error("You are not allowed to access this document"));
+        return;
       }
-      const updatesToSend: Update[] = [];
-      for (let update of docUpdates) {
-        // Convert the JSON representation to an actual ChangeSet
-        // instance
-        let changes = ChangeSet.fromJSON(update.changes);
-        const u: Update = {
-          changes,
-          clientID: update.clientID,
-          effects: update.effects,
-        };
-        updates[roomId]?.push(u);
-        updatesToSend.push(u);
-        doc[roomId] = changes.apply(doc[roomId]);
-      }
-      callback(true, updatesToSend);
+      docUpdates = JSON.parse(docUpdates);
+      try {
+        if (version != updates[roomId]?.length) {
+          docUpdates = rebaseUpdates(
+            docUpdates,
+            updates[roomId].slice(version),
+          );
+        }
+        const updatesToSend: Update[] = [];
+        for (let update of docUpdates) {
+          // Convert the JSON representation to an actual ChangeSet
+          // instance
+          let changes = ChangeSet.fromJSON(update.changes);
+          const u: Update = {
+            changes,
+            clientID: update.clientID,
+            effects: update.effects,
+          };
+          updates[roomId]?.push(u);
+          updatesToSend.push(u);
+          doc[roomId] = changes.apply(doc[roomId]);
+        }
+        callback(true, updatesToSend);
 
-      io.to(roomId).emit(
-        "codeUpdated",
-        socket.id,
-        updates[roomId]?.length || 0,
-        doc[roomId]?.toString(),
-      );
-    } catch (error) {
-      console.error(error);
-    }
-  });
+        io.to(roomId).emit(
+          "codeUpdated",
+          socket.id,
+          updates[roomId]?.length || 0,
+          doc[roomId]?.toString(),
+        );
+
+        const metadata = roomMetadata[roomId];
+        const lessonCodeId = metadata?.lessonCodeId;
+        const newCode = doc[roomId]?.toString();
+        if (lessonCodeId && newCode !== undefined) {
+          if (pendingLessonCodeUpdates[lessonCodeId.toHexString()]) {
+            clearTimeout(pendingLessonCodeUpdates[lessonCodeId.toHexString()]);
+          }
+
+          pendingLessonCodeUpdates[lessonCodeId.toHexString()] = setTimeout(
+            async () => {
+              try {
+                await LessonCode.updateOne(
+                  { _id: lessonCodeId },
+                  { code: newCode },
+                );
+              } catch (e) {
+                console.warn(
+                  `Database connection seems to be broken, the code of the lesson with id ${metadata.lessonId} could not be saved for the user with id ${metadata.owner}`,
+                  e,
+                );
+              }
+              delete pendingLessonCodeUpdates[lessonCodeId.toHexString()];
+            },
+            5000,
+          );
+        }
+      } catch (error) {
+        console.error(error);
+      }
+    },
+  );
 
   socket.on("end", function () {
     socket.disconnect(true);
