@@ -5,8 +5,11 @@ import { Server, Socket } from "socket.io";
 import dotenv from "dotenv";
 import * as _ from "lodash";
 
-import {ChangeSet, StateEffect, Text} from "@codemirror/state";
-import {rebaseUpdates, Update} from "@codemirror/collab";
+import { ChangeSet, StateEffect, Text } from "@codemirror/state";
+import { rebaseUpdates, Update } from "@codemirror/collab";
+import { ActivityManager, ActivityStatus } from "./activity";
+import { PermissionError } from "./errors/permission-error";
+import { RoomActivity } from "./types/room-activity";
 
 dotenv.config();
 
@@ -18,7 +21,7 @@ const server = http.createServer(app);
 app.use(
   cors({
     origin: "*",
-  })
+  }),
 );
 
 let updates: { [key: string]: Update[] } = {};
@@ -36,18 +39,43 @@ const io = new Server(server, {
   },
 });
 
+io.use((socket, next) => {
+  if (!socket.handshake.auth.userId) {
+    const err = new Error("Not authorized");
+    next(err);
+  } else {
+    next();
+  }
+});
+
+const activityManager = new ActivityManager(io);
+
 io.on("connection", async (socket: Socket) => {
+  const socketActivity = activityManager.initialize(socket);
+
   // student can use it only
-  socket.on("create", (roomId: string, callback: (created: boolean) => void) => {
-    console.log(roomId, "SET ROOM ID");
-    socket.join(roomId);
-    if(doc[roomId] !== undefined) {
-      if(callback) callback(false);
-      return;
-    }
-    doc[roomId] = Text.of([""]);
-    updates[roomId] = [];
-    if(callback) callback(true);
+  socket.on(
+    "create",
+    (roomId: string, callback: (created: boolean) => void) => {
+      console.log(roomId, "SET ROOM ID");
+      socket.join(roomId);
+      if (doc[roomId] !== undefined) {
+        if (callback) callback(false);
+        return;
+      }
+      doc[roomId] = Text.of([""]);
+      updates[roomId] = [];
+      if (callback) callback(true);
+    },
+  );
+
+  socket.on("joinLesson", async (lessonId: string) => {
+    socket.join(lessonId);
+    socket.emit(
+      "activityStatusAvailable",
+      lessonId,
+      await activityManager.getRoomActivity(lessonId),
+    );
   });
 
   socket.on("deleteRoom", (roomId: string) => {
@@ -69,7 +97,7 @@ io.on("connection", async (socket: Socket) => {
   // --------------------------
 
   socket.on("pullUpdates", (roomId: string, version: number, callback) => {
-    if(!socket.rooms.has(roomId)) {
+    if (!socket.rooms.has(roomId)) {
       callback(new Error("You are not allowed to access this document"));
       return;
     }
@@ -81,28 +109,37 @@ io.on("connection", async (socket: Socket) => {
   });
 
   socket.on("pushUpdates", (roomId: string, version, docUpdates, callback) => {
-    if(!socket.rooms.has(roomId)) {
+    if (!socket.rooms.has(roomId)) {
       callback(new Error("You are not allowed to access this document"));
       return;
     }
     docUpdates = JSON.parse(docUpdates);
     try {
       if (version != updates[roomId]?.length) {
-        docUpdates = rebaseUpdates(docUpdates, updates[roomId].slice(version))
+        docUpdates = rebaseUpdates(docUpdates, updates[roomId].slice(version));
       }
       const updatesToSend: Update[] = [];
       for (let update of docUpdates) {
         // Convert the JSON representation to an actual ChangeSet
         // instance
         let changes = ChangeSet.fromJSON(update.changes);
-        const u: Update = { changes, clientID: update.clientID, effects: update.effects };
+        const u: Update = {
+          changes,
+          clientID: update.clientID,
+          effects: update.effects,
+        };
         updates[roomId]?.push(u);
         updatesToSend.push(u);
         doc[roomId] = changes.apply(doc[roomId]);
       }
       callback(true, updatesToSend);
 
-      io.to(roomId).emit("codeUpdated", socket.id, updates[roomId]?.length || 0, doc[roomId]?.toString());
+      io.to(roomId).emit(
+        "codeUpdated",
+        socket.id,
+        updates[roomId]?.length || 0,
+        doc[roomId]?.toString(),
+      );
     } catch (error) {
       console.error(error);
     }
@@ -113,7 +150,7 @@ io.on("connection", async (socket: Socket) => {
   });
 
   socket.on("getDocument", (roomId, callback) => {
-    if(!socket.rooms.has(roomId)) {
+    if (!socket.rooms.has(roomId)) {
       callback("You are not allowed to access this document");
       return;
     }
@@ -124,6 +161,33 @@ io.on("connection", async (socket: Socket) => {
 
     callback(updates[roomId]?.length || 0, doc[roomId]?.toString());
   });
+
+  socket.on("getOwnActivityStatus", (callback) => {
+    callback(socketActivity.getActivityStatus());
+  });
+
+  socket.on(
+    "getActivityStatus",
+    async (
+      roomId: string,
+      callback: (status: RoomActivity | PermissionError) => void,
+    ) => {
+      if (!socket.rooms.has(roomId) && roomId !== "all") {
+        callback({
+          error: "PERMISSION_ERROR",
+          message:
+            "You are not allowed to check the activity status of this room",
+        });
+        return;
+      }
+
+      callback(
+        await activityManager.getRoomActivity(
+          roomId === "all" ? [...socket.rooms] : roomId,
+        ),
+      );
+    },
+  );
 });
 
 app.get("/health", (req: Request, res: Response) => {
