@@ -1,0 +1,43 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = "mongodb://mongo:mongo@localhost:27017/streaming?authSource=admin"
+}
+
+model Message {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  sender_id  String
+  reciver_id String
+  message    String
+  date       DateTime
+}
+
+model Room {
+  id             String          @id @default(auto()) @map("_id") @db.ObjectId
+  ownerId        String
+  codeManagement CodeUpdate[]
+  fileManagement FileManagement?
+}
+
+model CodeUpdate {
+  id       String @id @default(auto()) @map("_id") @db.ObjectId
+  room     Room   @relation(fields: [roomId], references: [id])
+  fileName String
+  updates  Json
+  roomId   String @unique @db.ObjectId
+}
+
+model FileManagement {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  activeFile    String
+  allFiles      String[]
+  filesInLayout String[]
+  room          Room     @relation(fields: [roomId], references: [id])
+  roomId        String   @unique @db.ObjectId
+}
