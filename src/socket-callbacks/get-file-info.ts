@@ -17,8 +17,8 @@ export const getFileInfo =
     const { activeFile, allFiles, filesInLayout } = fileManagement;
 
     socket.emit(SocketEvents.GetFileInfoResponse, {
-      activeFile,
-      files: allFiles,
-      filesInLayout,
+      activeFile: activeFile.id,
+      files: allFiles.map(({ id }) => id),
+      filesInLayout: filesInLayout.map(({ id }) => id),
     });
   };
