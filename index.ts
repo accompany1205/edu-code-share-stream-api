@@ -5,7 +5,7 @@ import express, { Request, Response } from "express";
 import * as http from "http";
 
 import { SocketEvents } from "./src/socket-callbacks/events";
-import { socketCallback } from "./src/socket-callbacks"
+import { socketCallback } from "./src/socket-callbacks";
 
 const app = express();
 
@@ -16,7 +16,7 @@ app.get("/health", (req: Request, res: Response) => {
 const server = http.createServer(app);
 
 const io = new Server(server, {
-  path: "/api",
+  path: "/",
   cors: {
     origin: "*",
     methods: ["GET", "POST"],
@@ -32,11 +32,14 @@ io.on("connection", (socket: Socket): void => {
 
   socket.on(SocketEvents.GetFileInfo, socketCallback.getFileInfo(socket));
 
-  socket.on(SocketEvents.CreateFile, socketCallback.createFile(socket))
+  socket.on(SocketEvents.CreateFile, socketCallback.createFile(socket));
 
   socket.on(SocketEvents.SetActiveFile, socketCallback.setActiveFile(socket));
 
-  socket.on(SocketEvents.AddedFileListUpdated, socketCallback.fileListUpdated(socket));
+  socket.on(
+    SocketEvents.AddedFileListUpdated,
+    socketCallback.fileListUpdated(socket),
+  );
 
   socket.on(SocketEvents.DeleteFile, socketCallback.deleteFile(socket));
 
