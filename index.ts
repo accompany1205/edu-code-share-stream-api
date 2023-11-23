@@ -38,6 +38,8 @@ const activityManager = new ActivityManager(io);
 io.on("connection", (socket: Socket): void => {
   const socketActivity = activityManager.initialize(socket);
 
+  console.log("Connected: " + socket.id);
+
   socket.on(SocketEvents.GetDoc, socketCallback.getDocument(socket));
 
   socket.on(SocketEvents.Pull, socketCallback.pullUpdates(socket));
@@ -62,6 +64,8 @@ io.on("connection", (socket: Socket): void => {
   socket.on(SocketEvents.DeleteRoom, socketCallback.deleteRoom(socket));
 
   socket.on(SocketEvents.GetCode, socketCallback.getCode(socket));
+
+  socket.on(SocketEvents.JoinRoom, socketCallback.joinRoom(socket));
 
   // Activity status related events
   socket.on(

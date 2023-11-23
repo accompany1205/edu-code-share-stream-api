@@ -4,6 +4,7 @@ import { updateService } from "../services/redis-update.service";
 import { getUniqCursorName } from "../utils/uniq-cursor-name.utils";
 
 import { SocketEvents, type File } from "./events";
+import { Text } from "@codemirror/state";
 
 interface GetDocumentProps {
   roomId: string;
@@ -41,7 +42,7 @@ export const getDocument =
       socket.broadcast.emit(`${SocketEvents.RoomExistResponse}${roomId}`);
       socket.emit(SocketEvents.GetDocResponse, {
         version: updates.length,
-        doc,
+        doc: Text.of(doc).toString(),
         cursorName,
         updates,
         docInfo,
