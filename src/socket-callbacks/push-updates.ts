@@ -7,6 +7,11 @@ import { pendingManager } from "../services/pending-service";
 
 import { type File, SocketEvents } from "./events";
 import { getUserId } from "../utils/socket-to-user-id";
+import { LessonCode } from "../db/models/lesson-code";
+
+const pendingLessonCodeUpdates: {
+  [lessonCodeId: string]: NodeJS.Timeout;
+} = {};
 
 interface PushUpdatesProps {
   roomId: string;
@@ -79,6 +84,32 @@ export const pushUpdates =
           version: docUpdates.updates.length + updatesToSend.length,
           doc: doc.toString(),
         });
+
+        const room = await updateService.getRoom(roomId);
+        const lessonCodeId = room?.lessonCodeId;
+        if (lessonCodeId) {
+          if (pendingLessonCodeUpdates[lessonCodeId.toHexString()]) {
+            clearTimeout(pendingLessonCodeUpdates[lessonCodeId.toHexString()]);
+          }
+
+          pendingLessonCodeUpdates[lessonCodeId.toHexString()] = setTimeout(
+            async () => {
+              try {
+                await LessonCode.updateOne(
+                  { _id: lessonCodeId },
+                  { code: doc.toString() },
+                );
+              } catch (e) {
+                console.warn(
+                  `Database connection seems to be broken, the code of the could not be saved for the user with id ${room.owner}`,
+                  e,
+                );
+              }
+              delete pendingLessonCodeUpdates[lessonCodeId.toHexString()];
+            },
+            5000,
+          );
+        }
       } catch (error) {
         console.error(error);
       }

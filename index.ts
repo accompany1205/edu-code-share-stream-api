@@ -9,6 +9,7 @@ import { socketCallback } from "./src/socket-callbacks";
 import { ActivityManager } from "./src/activity";
 import { updateService } from "./src/services/redis-update.service";
 import { getUserId } from "./src/utils/socket-to-user-id";
+import mongoose from "mongoose";
 
 const app = express();
 
@@ -36,6 +37,23 @@ io.use((socket, next) => {
 });
 
 const activityManager = new ActivityManager(io);
+
+let databaseEnabled = false;
+
+mongoose
+  .connect(process.env.MONGODB_URI || "", {
+    dbName: "codetribe",
+  })
+  .then(() => {
+    console.log("Database connection successful. Code saving enabled!");
+    databaseEnabled = true;
+  })
+  .catch((e) => {
+    console.warn(
+      "Database connection failed, database features will be disabled. Error:",
+      e.message,
+    );
+  });
 
 io.on("connection", (socket: Socket): void => {
   const socketActivity = activityManager.initialize(socket);
