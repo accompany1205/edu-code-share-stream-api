@@ -9,9 +9,9 @@ import { getUserId } from "../utils/socket-to-user-id";
 import mongoose, { Types } from "mongoose";
 import { LessonCode } from "../db/models/lesson-code";
 
-const getEmptyUpdates = (): Updates => ({
+const getEmptyUpdates = (text = ""): Updates => ({
   updates: [],
-  doc: [""],
+  doc: [text],
 });
 
 const REDIS_PORT = Number(process.env.REDIS_PORT) || 6379;
@@ -62,7 +62,7 @@ export class RedisUpdateService {
       name: defaultFileName,
     };
 
-    let lessonCodeId: Types.ObjectId | undefined = undefined;
+    let lessonCodeId: string | undefined = undefined;
     let lessonCode: string = /*initialCode ??*/ "";
     if (mongoose.connection.readyState === 1) {
       try {
@@ -71,7 +71,7 @@ export class RedisUpdateService {
           lessonId: roomId,
         }).exec();
         if (existingLessonCode) {
-          lessonCodeId = existingLessonCode._id;
+          lessonCodeId = existingLessonCode._id.toHexString();
           if (existingLessonCode.code) {
             lessonCode = existingLessonCode.code;
           } /* else if (initialCode !== undefined) {
@@ -85,7 +85,7 @@ export class RedisUpdateService {
               lessonId: roomId,
               code: lessonCode,
             })
-          )._id;
+          )._id.toHexString();
         }
       } catch (e) {
         console.warn(
@@ -100,7 +100,9 @@ export class RedisUpdateService {
     return {
       owner: owner,
       lessonCodeId,
-      codeManagement: [{ fileId: file.id, docUpdates: getEmptyUpdates() }],
+      codeManagement: [
+        { fileId: file.id, docUpdates: getEmptyUpdates(lessonCode) },
+      ],
       fileManagement: {
         activeFile: file,
         allFiles: [file],
@@ -298,7 +300,7 @@ interface Document {
 
 interface Room {
   owner: string;
-  lessonCodeId?: Types.ObjectId;
+  lessonCodeId?: string;
   codeManagement: Document[];
   fileManagement: FileManagement;
 }

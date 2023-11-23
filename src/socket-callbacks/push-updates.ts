@@ -88,27 +88,24 @@ export const pushUpdates =
         const room = await updateService.getRoom(roomId);
         const lessonCodeId = room?.lessonCodeId;
         if (lessonCodeId) {
-          if (pendingLessonCodeUpdates[lessonCodeId.toHexString()]) {
-            clearTimeout(pendingLessonCodeUpdates[lessonCodeId.toHexString()]);
+          if (pendingLessonCodeUpdates[lessonCodeId]) {
+            clearTimeout(pendingLessonCodeUpdates[lessonCodeId]);
           }
 
-          pendingLessonCodeUpdates[lessonCodeId.toHexString()] = setTimeout(
-            async () => {
-              try {
-                await LessonCode.updateOne(
-                  { _id: lessonCodeId },
-                  { code: doc.toString() },
-                );
-              } catch (e) {
-                console.warn(
-                  `Database connection seems to be broken, the code of the could not be saved for the user with id ${room.owner}`,
-                  e,
-                );
-              }
-              delete pendingLessonCodeUpdates[lessonCodeId.toHexString()];
-            },
-            5000,
-          );
+          pendingLessonCodeUpdates[lessonCodeId] = setTimeout(async () => {
+            try {
+              await LessonCode.updateOne(
+                { _id: lessonCodeId },
+                { code: doc.toString() },
+              );
+            } catch (e) {
+              console.warn(
+                `Database connection seems to be broken, the code of the could not be saved for the user with id ${room.owner}`,
+                e,
+              );
+            }
+            delete pendingLessonCodeUpdates[lessonCodeId];
+          }, 5000);
         }
       } catch (error) {
         console.error(error);
