@@ -3,6 +3,7 @@ import { Socket } from "socket.io";
 import { updateService } from "../services/redis-update.service";
 
 import { File, SocketEvents } from "./events";
+import { getUserId } from "../utils/socket-to-user-id";
 
 interface PullUpdateProps {
   roomId: string;
@@ -18,7 +19,7 @@ export const pullUpdates =
     callback: (updates: string[]) => void,
   ) => {
     try {
-      const roomData = { roomId, fileName };
+      const roomData = { roomId, fileName, userId: getUserId(socket) };
       const {
         docUpdates: { updates },
       } = await updateService.getDocument(roomData);

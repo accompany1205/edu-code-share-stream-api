@@ -49,13 +49,14 @@ export class RedisUpdateService {
     return null;
   };
 
-  createEmptyRoom = (defaultFileName: string = ""): Room => {
+  createEmptyRoom = (owner: string, defaultFileName: string = ""): Room => {
     const file = {
       id: defaultFileName,
       name: defaultFileName,
     };
 
     return {
+      owner: owner,
       codeManagement: [{ fileId: file.id, docUpdates: getEmptyUpdates() }],
       fileManagement: {
         activeFile: file,
@@ -159,13 +160,14 @@ export class RedisUpdateService {
 
   getDocument = async ({
     roomId,
+    userId,
     fileName,
     defaultFileName,
   }: GetDocInfo): Promise<Document> => {
     const isRoomExist = await this.isRoomExist(roomId);
 
     if (!isRoomExist) {
-      const room = this.createEmptyRoom(defaultFileName);
+      const room = this.createEmptyRoom(userId, defaultFileName);
       await this.setRoom({ roomId, room });
     }
 
@@ -252,6 +254,7 @@ interface Document {
 }
 
 interface Room {
+  owner: string;
   codeManagement: Document[];
   fileManagement: FileManagement;
 }
@@ -263,6 +266,7 @@ export interface DocInfo {
 
 export interface GetDocInfo extends DocInfo {
   defaultFileName?: string;
+  userId: string;
 }
 
 interface RoomInfo {

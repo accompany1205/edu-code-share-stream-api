@@ -6,6 +6,7 @@ import { updateService } from "../services/redis-update.service";
 import { pendingManager } from "../services/pending-service";
 
 import { type File, SocketEvents } from "./events";
+import { getUserId } from "../utils/socket-to-user-id";
 
 interface PushUpdatesProps {
   roomId: string;
@@ -27,7 +28,7 @@ export const pushUpdates =
     }) => void,
   ) => {
     try {
-      const roomData = { roomId, fileName };
+      const roomData = { roomId, fileName, userId: getUserId(socket) };
       const { docUpdates } = await updateService.getDocument(roomData);
 
       let parsedUpdates: Update[] = JSON.parse(updates).map(
