@@ -1,7 +1,6 @@
 import { Socket } from "socket.io";
 
 import { updateService } from "../services/redis-update.service";
-import { pendingManager } from "../services/pending-service";
 
 import { File, SocketEvents } from "./events";
 
@@ -14,26 +13,20 @@ interface PullUpdateProps {
 
 export const pullUpdates =
   (socket: Socket) =>
-  async ({ roomId, version, fileName, socketId }: PullUpdateProps) => {
+  async (
+    { roomId, version, fileName, socketId }: PullUpdateProps,
+    callback: (updates: string[]) => void,
+  ) => {
     try {
       const roomData = { roomId, fileName };
-      const pending = { socketId, version };
       const {
         docUpdates: { updates },
       } = await updateService.getDocument(roomData);
-      const pullResponseEvent = `${SocketEvents.PullResponse}${roomId}${fileName.id}`;
 
       if (version < updates.length) {
-        socket.emit(pullResponseEvent, updates.slice(version));
+        callback(updates.slice(version));
       } else {
-        const isRoomExist = pendingManager.isPendingExist({
-          ...roomData,
-          ...pending,
-        });
-
-        if (!isRoomExist) {
-          pendingManager.add({ ...roomData, pending });
-        }
+        callback([]);
       }
     } catch (error) {
       console.error("pullUpdates", error);

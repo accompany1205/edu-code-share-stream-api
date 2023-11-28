@@ -4,10 +4,11 @@ import { type Update } from "@codemirror/collab";
 
 import { getExtension } from "../utils/get-extension";
 import { type File } from "../socket-callbacks/events";
+import { Text } from "@codemirror/state";
 
 const getEmptyUpdates = (): Updates => ({
   updates: [],
-  doc: "",
+  doc: [""],
 });
 
 const REDIS_PORT = Number(process.env.REDIS_PORT) || 6379;
@@ -118,8 +119,8 @@ export class RedisUpdateService {
 
               res[`${extension}Body`] =
                 doc == null
-                  ? [item.docUpdates.doc.toString()]
-                  : [...doc, item.docUpdates.doc.toString()];
+                  ? [Text.of(item.docUpdates.doc).toString()]
+                  : [...doc, Text.of(item.docUpdates.doc).toString()];
             }
 
             return res;
@@ -232,8 +233,11 @@ export class RedisUpdateService {
 }
 
 interface Updates {
-  updates: Update[];
-  doc: string;
+  /**
+   * List of JSON change sets
+   */
+  updates: string[];
+  doc: string[];
 }
 
 interface FileManagement {

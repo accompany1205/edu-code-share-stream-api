@@ -1,6 +1,6 @@
 import { Socket, Server } from "socket.io";
-import { type Update } from "@codemirror/collab";
-import { ChangeSet, Text } from "@codemirror/state";
+import { rebaseUpdates, type Update } from "@codemirror/collab";
+import { ChangeSet, StateEffect, Text } from "@codemirror/state";
 
 import { updateService } from "../services/redis-update.service";
 import { pendingManager } from "../services/pending-service";
@@ -16,54 +16,70 @@ interface PushUpdatesProps {
 
 export const pushUpdates =
   (io: Server, socket: Socket) =>
-  async ({ roomId, version, updates, fileName }: PushUpdatesProps) => {
+  async (
+    { roomId, version, updates, fileName }: PushUpdatesProps,
+    callback: ({
+      status,
+      updates,
+    }: {
+      status: boolean;
+      updates: Update[];
+    }) => void,
+  ) => {
     try {
       const roomData = { roomId, fileName };
       const { docUpdates } = await updateService.getDocument(roomData);
 
-      const pullResponseEvenet = `${SocketEvents.PullResponse}${roomId}${fileName.id}`;
-      const docUpdatedEvent = `${SocketEvents.DocUpdated}${roomId}`;
-
-      if (version != docUpdates.updates.length) {
-        socket.emit(SocketEvents.PushResponse, false);
-        const codeInfo = await updateService.getCodeInfo(roomId);
-
-        socket.emit(docUpdatedEvent, codeInfo);
-        socket.broadcast.emit(docUpdatedEvent, codeInfo);
-      } else {
-        const parsedUpdates: Update[] = JSON.parse(updates);
-        for (let update of parsedUpdates) {
-          const changes = ChangeSet.fromJSON(update.changes);
-          const u: Update = {
-            changes,
+      let parsedUpdates: Update[] = JSON.parse(updates).map(
+        (update: Update) => {
+          return {
+            changes: ChangeSet.fromJSON(update.changes),
             clientID: update.clientID,
             effects: update.effects,
-          };
-
-          await updateService.addUpdates({
-            ...roomData,
-            updates: ({ updates, doc }) => ({
-              updates: [...updates, u],
-              doc: changes.apply(Text.of([doc])).toString(),
-            }),
+          } as Update;
+        },
+      );
+      try {
+        if (version != docUpdates.updates.length) {
+          const origParsed = docUpdates.updates.slice(version).map((update) => {
+            const pU = JSON.parse(update);
+            return {
+              changes: ChangeSet.fromJSON(pU.changes),
+              clientID: pU.clientID,
+              effects: pU.effects,
+            } as Update;
           });
+          // @ts-ignore
+          parsedUpdates = rebaseUpdates(parsedUpdates, origParsed);
         }
 
-        socket.emit(SocketEvents.PushResponse, true);
-
-        const { docUpdates } = await updateService.getUpdates(roomData);
-        const pendings = pendingManager.getPendings(roomData);
-        const codeInfo = await updateService.getCodeInfo(roomId);
-
-        while (pendings.length) {
-          const { socketId, version } = pendingManager.pop(roomData);
-
-          io.to(socketId).emit(docUpdatedEvent, codeInfo);
-          io.to(socketId).emit(
-            pullResponseEvenet,
-            docUpdates.updates.slice(version),
-          );
+        const updatesToSend: Update[] = [];
+        let doc = Text.of(docUpdates.doc);
+        for (let update of parsedUpdates) {
+          updatesToSend.push(update);
+          doc = update.changes.apply(doc);
         }
+
+        await updateService.addUpdates({
+          ...roomData,
+          updates: ({ updates }) => ({
+            updates: [
+              ...updates,
+              ...updatesToSend.map((u) => JSON.stringify(u)),
+            ],
+            doc: doc.toJSON(),
+          }),
+        });
+
+        callback({ status: true, updates: updatesToSend });
+
+        io.to(roomId).emit(SocketEvents.CodeUpdated, {
+          socketId: socket.id,
+          version: docUpdates.updates.length + updatesToSend.length,
+          doc: doc.toString(),
+        });
+      } catch (error) {
+        console.error(error);
       }
     } catch (error) {
       console.error("pushUpdates", error);
