@@ -6,6 +6,12 @@ import { updateService } from "../services/redis-update.service";
 import { pendingManager } from "../services/pending-service";
 
 import { type File, SocketEvents } from "./events";
+import { getUserId } from "../utils/socket-to-user-id";
+import { LessonCode } from "../db/models/lesson-code";
+
+const pendingLessonCodeUpdates: {
+  [lessonCodeId: string]: NodeJS.Timeout;
+} = {};
 
 interface PushUpdatesProps {
   roomId: string;
@@ -27,7 +33,7 @@ export const pushUpdates =
     }) => void,
   ) => {
     try {
-      const roomData = { roomId, fileName };
+      const roomData = { roomId, fileName, userId: getUserId(socket) };
       const { docUpdates } = await updateService.getDocument(roomData);
 
       let parsedUpdates: Update[] = JSON.parse(updates).map(
@@ -78,6 +84,29 @@ export const pushUpdates =
           version: docUpdates.updates.length + updatesToSend.length,
           doc: doc.toString(),
         });
+
+        const room = await updateService.getRoom(roomId);
+        const lessonCodeId = room?.lessonCodeId;
+        if (lessonCodeId) {
+          if (pendingLessonCodeUpdates[lessonCodeId]) {
+            clearTimeout(pendingLessonCodeUpdates[lessonCodeId]);
+          }
+
+          pendingLessonCodeUpdates[lessonCodeId] = setTimeout(async () => {
+            try {
+              await LessonCode.updateOne(
+                { _id: lessonCodeId },
+                { code: doc.toString() },
+              );
+            } catch (e) {
+              console.warn(
+                `Database connection seems to be broken, the code of the could not be saved for the user with id ${room.owner}`,
+                e,
+              );
+            }
+            delete pendingLessonCodeUpdates[lessonCodeId];
+          }, 5000);
+        }
       } catch (error) {
         console.error(error);
       }
