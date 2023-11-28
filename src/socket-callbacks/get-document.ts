@@ -5,9 +5,11 @@ import { getUniqCursorName } from "../utils/uniq-cursor-name.utils";
 
 import { SocketEvents, type File } from "./events";
 import { Text } from "@codemirror/state";
+import { getUserId } from "../utils/socket-to-user-id";
 
 interface GetDocumentProps {
   roomId: string;
+  userId: string;
   cursorName: string;
   fileName: File;
   preloadedCode?: string;
@@ -24,15 +26,14 @@ export const getDocument =
   }: GetDocumentProps) => {
     const cursorName = getUniqCursorName(_cursorName);
 
-    if (!updateService.isRoomExist(roomId)) {
-      socket.join(roomId);
-    }
+    socket.join(roomId);
 
     try {
       const {
         docUpdates: { updates, doc },
       } = await updateService.getDocument({
         roomId,
+        userId: getUserId(socket),
         fileName,
         defaultFileName,
       });
