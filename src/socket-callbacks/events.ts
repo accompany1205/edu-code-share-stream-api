@@ -21,13 +21,11 @@ export enum SocketEvents {
   DocUpdated = "docUpdated",
   GetCode = "getCode",
   GetCodeResponse = "getCodeResponse",
-  CodeUpdated = "codeUpdated",
   CreateFile = "createFile",
   CreateFileResponse = "createFileResponse",
   GetOwnActivityStatus = "getOwnActivityStatus",
   GetActivityStatus = "getActivityStatus",
   JoinLesson = "joinLesson",
-  JoinRoom = "joinRoom",
   ActivityStatusAvailable = "activityStatusAvailable",
 }
 

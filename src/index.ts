@@ -12,13 +12,20 @@ import { RoomActivity } from "./types/room-activity";
 import { getUserId } from "./utils/socket-to-user-id";
 import { LessonCode } from "./db/models/lesson-code";
 import mongoose, { Types } from "mongoose";
+import fs from 'fs'
+import * as https from 'https';
 
 dotenv.config();
 
 const port = process.env.PORT || 8000;
 
+const httpsOptions = {
+  key: fs.readFileSync('./private.key'),
+  cert: fs.readFileSync('./certificate.crt'),
+}
+
 const app: Express = express();
-const server = http.createServer(app);
+const server = https.createServer(httpsOptions, app);
 
 app.use(
   cors({
@@ -295,6 +302,6 @@ app.get("/health", (req: Request, res: Response) => {
   res.send("healthy");
 });
 
-server.listen(port, () => {
+server.listen(443, () => {
   console.log(`listening on port http://localhost:${port}`);
 });

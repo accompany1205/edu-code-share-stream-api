@@ -4,12 +4,9 @@ import { updateService } from "../services/redis-update.service";
 import { getUniqCursorName } from "../utils/uniq-cursor-name.utils";
 
 import { SocketEvents, type File } from "./events";
-import { Text } from "@codemirror/state";
-import { getUserId } from "../utils/socket-to-user-id";
 
 interface GetDocumentProps {
   roomId: string;
-  userId: string;
   cursorName: string;
   fileName: File;
   preloadedCode?: string;
@@ -23,19 +20,22 @@ export const getDocument =
     roomId,
     fileName,
     defaultFileName,
+    preloadedCode,
   }: GetDocumentProps) => {
     const cursorName = getUniqCursorName(_cursorName);
 
-    socket.join(roomId);
+    if (!updateService.isRoomExist(roomId)) {
+      socket.join(roomId);
+    }
 
     try {
       const {
         docUpdates: { updates, doc },
       } = await updateService.getDocument({
         roomId,
-        userId: getUserId(socket),
         fileName,
         defaultFileName,
+        preloadedCode,
       });
 
       const docInfo = await updateService.getCodeInfo(roomId);
@@ -43,7 +43,7 @@ export const getDocument =
       socket.broadcast.emit(`${SocketEvents.RoomExistResponse}${roomId}`);
       socket.emit(SocketEvents.GetDocResponse, {
         version: updates.length,
-        doc: Text.of(doc).toString(),
+        doc,
         cursorName,
         updates,
         docInfo,

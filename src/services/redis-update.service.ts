@@ -4,14 +4,10 @@ import { type Update } from "@codemirror/collab";
 
 import { getExtension } from "../utils/get-extension";
 import { type File } from "../socket-callbacks/events";
-import { Text } from "@codemirror/state";
-import { getUserId } from "../utils/socket-to-user-id";
-import mongoose, { Types } from "mongoose";
-import { LessonCode } from "../db/models/lesson-code";
 
-const getEmptyUpdates = (text = ""): Updates => ({
+const getEmptyUpdates = (): Updates => ({
   updates: [],
-  doc: [text],
+  doc: "",
 });
 
 const REDIS_PORT = Number(process.env.REDIS_PORT) || 6379;
@@ -52,57 +48,14 @@ export class RedisUpdateService {
     return null;
   };
 
-  createEmptyRoom = async (
-    owner: string,
-    roomId: string,
-    defaultFileName: string = "",
-  ): Promise<Room> => {
+  createEmptyRoom = (defaultFileName: string = "", preloadedCode?: string): Room => {
     const file = {
       id: defaultFileName,
       name: defaultFileName,
     };
 
-    let lessonCodeId: string | undefined = undefined;
-    let lessonCode: string = /*initialCode ??*/ "";
-    if (mongoose.connection.readyState === 1) {
-      try {
-        const existingLessonCode = await LessonCode.findOne({
-          userId: owner,
-          lessonId: roomId,
-        }).exec();
-        if (existingLessonCode) {
-          lessonCodeId = existingLessonCode._id.toHexString();
-          if (existingLessonCode.code) {
-            lessonCode = existingLessonCode.code;
-          } /* else if (initialCode !== undefined) {
-            existingLessonCode.code = initialCode;
-            await existingLessonCode.save();
-          }*/
-        } else {
-          lessonCodeId = (
-            await LessonCode.create({
-              userId: owner,
-              lessonId: roomId,
-              code: lessonCode,
-            })
-          )._id.toHexString();
-        }
-      } catch (e) {
-        console.warn(
-          `Database connection seems to be broken, code of the lesson with id ${roomId} will not be saved for the user with id ${owner}`,
-          e,
-        );
-      }
-    } else {
-      console.warn("Database not connected, code lookup is disabled");
-    }
-
     return {
-      owner: owner,
-      lessonCodeId,
-      codeManagement: [
-        { fileId: file.id, docUpdates: getEmptyUpdates(lessonCode) },
-      ],
+      codeManagement: [{ fileId: file.id, docUpdates: preloadedCode ? { doc: preloadedCode, updates: [] } : getEmptyUpdates() }],
       fileManagement: {
         activeFile: file,
         allFiles: [file],
@@ -165,8 +118,8 @@ export class RedisUpdateService {
 
               res[`${extension}Body`] =
                 doc == null
-                  ? [Text.of(item.docUpdates.doc).toString()]
-                  : [...doc, Text.of(item.docUpdates.doc).toString()];
+                  ? [item.docUpdates.doc.toString()]
+                  : [...doc, item.docUpdates.doc.toString()];
             }
 
             return res;
@@ -205,14 +158,14 @@ export class RedisUpdateService {
 
   getDocument = async ({
     roomId,
-    userId,
     fileName,
     defaultFileName,
+    preloadedCode,
   }: GetDocInfo): Promise<Document> => {
     const isRoomExist = await this.isRoomExist(roomId);
 
     if (!isRoomExist) {
-      const room = await this.createEmptyRoom(userId, roomId, defaultFileName);
+      const room = this.createEmptyRoom(defaultFileName, preloadedCode);
       await this.setRoom({ roomId, room });
     }
 
@@ -280,11 +233,8 @@ export class RedisUpdateService {
 }
 
 interface Updates {
-  /**
-   * List of JSON change sets
-   */
-  updates: string[];
-  doc: string[];
+  updates: Update[];
+  doc: string;
 }
 
 interface FileManagement {
@@ -299,8 +249,6 @@ interface Document {
 }
 
 interface Room {
-  owner: string;
-  lessonCodeId?: string;
   codeManagement: Document[];
   fileManagement: FileManagement;
 }
@@ -312,7 +260,7 @@ export interface DocInfo {
 
 export interface GetDocInfo extends DocInfo {
   defaultFileName?: string;
-  userId: string;
+  preloadedCode?: string;
 }
 
 interface RoomInfo {

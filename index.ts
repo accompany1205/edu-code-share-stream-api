@@ -7,9 +7,6 @@ import * as http from "http";
 import { SocketEvents } from "./src/socket-callbacks/events";
 import { socketCallback } from "./src/socket-callbacks";
 import { ActivityManager } from "./src/activity";
-import { updateService } from "./src/services/redis-update.service";
-import { getUserId } from "./src/utils/socket-to-user-id";
-import mongoose from "mongoose";
 
 const app = express();
 
@@ -38,27 +35,8 @@ io.use((socket, next) => {
 
 const activityManager = new ActivityManager(io);
 
-let databaseEnabled = false;
-
-mongoose
-  .connect(process.env.MONGODB_URI || "", {
-    dbName: "codetribe",
-  })
-  .then(() => {
-    console.log("Database connection successful. Code saving enabled!");
-    databaseEnabled = true;
-  })
-  .catch((e) => {
-    console.warn(
-      "Database connection failed, database features will be disabled. Error:",
-      e.message,
-    );
-  });
-
 io.on("connection", (socket: Socket): void => {
   const socketActivity = activityManager.initialize(socket);
-
-  console.log("Connected: " + socket.id);
 
   socket.on(SocketEvents.GetDoc, socketCallback.getDocument(socket));
 
@@ -85,8 +63,6 @@ io.on("connection", (socket: Socket): void => {
 
   socket.on(SocketEvents.GetCode, socketCallback.getCode(socket));
 
-  socket.on(SocketEvents.JoinRoom, socketCallback.joinRoom(socket));
-
   // Activity status related events
   socket.on(
     SocketEvents.GetOwnActivityStatus,
@@ -100,17 +76,6 @@ io.on("connection", (socket: Socket): void => {
     SocketEvents.JoinLesson,
     socketCallback.joinLesson(socket, activityManager),
   );
-
-  socket.on("disconnecting", () => {
-    socket.rooms.forEach(async (roomId) => {
-      const room = await updateService.getRoom(roomId);
-      if (room) {
-        if (room.owner === getUserId(socket)) {
-          await updateService.deleteRoom(roomId);
-        }
-      }
-    });
-  });
 });
 
 const port = process.env.PORT || 8001;

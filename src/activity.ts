@@ -56,9 +56,6 @@ export class SocketActivity {
   private lastActivity: number | undefined;
   private activityStatusUpdateTimeout: NodeJS.Timeout | undefined;
 
-  private onDisconnectCallback: () => void;
-  private onPushUpdatesCallback: () => void;
-
   public constructor(
     private readonly io: Server,
     public readonly socket: Socket,
@@ -66,12 +63,9 @@ export class SocketActivity {
   ) {
     this.updateActivity();
 
-    this.onDisconnectCallback = this.onDisconnect.bind(this);
-    this.onPushUpdatesCallback = this.onPushUpdates.bind(this);
-
-    socket.on("disconnect", this.onDisconnectCallback);
+    socket.on("disconnect", this.onDisconnect);
     // Only update activity when the user is pushing updates (i.e. typing)
-    socket.on("pushUpdates", this.onPushUpdatesCallback);
+    socket.on("pushUpdates", this.onPushUpdates);
   }
 
   public getActivityStatus(): ActivityStatus {
@@ -147,8 +141,8 @@ export class SocketActivity {
   };
 
   private onDisconnect = () => {
-    this.socket.off("disconnect", this.onDisconnectCallback);
-    this.socket.off("pushUpdates", this.onPushUpdatesCallback);
+    this.socket.off("disconnect", this.onDisconnect);
+    this.socket.off("pushUpdates", this.onPushUpdates);
     this.destroyHandler?.();
   };
 }

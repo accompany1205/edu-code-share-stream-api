@@ -10,15 +10,15 @@ export const getFileInfo =
     const fileManagement = await updateService.getFileManagement(roomId);
 
     if (fileManagement == null) {
-      socket.emit(SocketEvents.GetFileInfoResponse, null);
+      socket.emit(SocketEvents.GetFileInfoResponse + socketId, null);
       return;
     }
 
     const { activeFile, allFiles, filesInLayout } = fileManagement;
 
-    socket.emit(SocketEvents.GetFileInfoResponse, {
+    socket.emit(SocketEvents.GetFileInfoResponse + socketId, {
       activeFile: activeFile.id,
       files: allFiles.map(({ id }) => id),
       filesInLayout: filesInLayout.map(({ id }) => id),
     });
-  };
+};
