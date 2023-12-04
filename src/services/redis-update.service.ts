@@ -48,14 +48,14 @@ export class RedisUpdateService {
     return null;
   };
 
-  createEmptyRoom = (defaultFileName: string = "", preloadedCode?: string): Room => {
+  createEmptyRoom = (defaultFileName: string = ""): Room => {
     const file = {
       id: defaultFileName,
       name: defaultFileName,
     };
 
     return {
-      codeManagement: [{ fileId: file.id, docUpdates: preloadedCode ? { doc: preloadedCode, updates: [] } : getEmptyUpdates() }],
+      codeManagement: [{ fileId: file.id, docUpdates: getEmptyUpdates() }],
       fileManagement: {
         activeFile: file,
         allFiles: [file],
@@ -160,12 +160,11 @@ export class RedisUpdateService {
     roomId,
     fileName,
     defaultFileName,
-    preloadedCode,
   }: GetDocInfo): Promise<Document> => {
     const isRoomExist = await this.isRoomExist(roomId);
 
     if (!isRoomExist) {
-      const room = this.createEmptyRoom(defaultFileName, preloadedCode);
+      const room = this.createEmptyRoom(defaultFileName);
       await this.setRoom({ roomId, room });
     }
 
@@ -260,7 +259,6 @@ export interface DocInfo {
 
 export interface GetDocInfo extends DocInfo {
   defaultFileName?: string;
-  preloadedCode?: string;
 }
 
 interface RoomInfo {

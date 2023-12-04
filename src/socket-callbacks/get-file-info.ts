@@ -4,21 +4,19 @@ import { updateService } from "../services/redis-update.service";
 
 import { SocketEvents } from "./events";
 
-export const getFileInfo =
-  (socket: Socket) =>
-  async (roomId: string, socketId: string, mode: string) => {
-    const fileManagement = await updateService.getFileManagement(roomId);
+export const getFileInfo = (socket: Socket) => async (roomId: string, socketId: string, mode: string) => {
+  const fileManagement = await updateService.getFileManagement(roomId);
 
-    if (fileManagement == null) {
-      socket.emit(SocketEvents.GetFileInfoResponse + socketId, null);
-      return;
-    }
+  if (fileManagement == null) {
+    socket.emit(SocketEvents.GetFileInfoResponse + socketId, null);
+    return;
+  }
 
-    const { activeFile, allFiles, filesInLayout } = fileManagement;
+  const { activeFile, allFiles, filesInLayout } = fileManagement;
 
-    socket.emit(SocketEvents.GetFileInfoResponse + socketId, {
-      activeFile: activeFile.id,
-      files: allFiles.map(({ id }) => id),
-      filesInLayout: filesInLayout.map(({ id }) => id),
-    });
-};
+  socket.emit(SocketEvents.GetFileInfoResponse + socketId, {
+    activeFile,
+    files: allFiles,
+    filesInLayout,
+  });
+}
