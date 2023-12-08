@@ -21,11 +21,17 @@ export enum SocketEvents {
   DocUpdated = "docUpdated",
   GetCode = "getCode",
   GetCodeResponse = "getCodeResponse",
+  CodeUpdated = "codeUpdated",
   CreateFile = "createFile",
-  CreateFileResponse = "createFileResponse"
+  CreateFileResponse = "createFileResponse",
+  GetOwnActivityStatus = "getOwnActivityStatus",
+  GetActivityStatus = "getActivityStatus",
+  JoinLesson = "joinLesson",
+  JoinRoom = "joinRoom",
+  ActivityStatusAvailable = "activityStatusAvailable",
 }
 
 export interface File {
-  id: string
-  name: string
+  id: string;
+  name: string;
 }
