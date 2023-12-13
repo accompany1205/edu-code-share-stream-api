@@ -1,1 +1,4 @@
 node_modules
+/http-api-main.log
+/package-lock.json
+/yarn.lock

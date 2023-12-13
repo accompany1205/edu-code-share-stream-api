@@ -1,35 +1,41 @@
+
+
 import { Socket } from "socket.io";
 
 import { updateService } from "../services/redis-update.service";
+import { pendingManager } from "../services/pending-service";
 
 import { File, SocketEvents } from "./events";
-import { getUserId } from "../utils/socket-to-user-id";
 
 interface PullUpdateProps {
-  roomId: string;
-  version: number;
-  fileName: File;
-  socketId: string;
+  roomId: string,
+  version: number,
+  fileName: File,
+  socketId: string,
 }
 
-export const pullUpdates =
-  (socket: Socket) =>
-  async (
-    { roomId, version, fileName, socketId }: PullUpdateProps,
-    callback: (updates: string[]) => void,
-  ) => {
-    try {
-      const roomData = { roomId, fileName, userId: getUserId(socket) };
-      const {
-        docUpdates: { updates },
-      } = await updateService.getDocument(roomData);
+export const pullUpdates = (socket: Socket) => async ({
+  roomId,
+  version,
+  fileName,
+  socketId,
+}: PullUpdateProps) => {
+  try {
+    const roomData = { roomId, fileName };
+    const pending = { socketId, version };
+    const { docUpdates: { updates } } = await updateService.getDocument(roomData);
+    const pullResponseEvent =  `${SocketEvents.PullResponse}${roomId}${fileName.id}`;
 
-      if (version < updates.length) {
-        callback(updates.slice(version));
-      } else {
-        callback([]);
+    if (version < updates.length) {
+      socket.emit(pullResponseEvent, updates.slice(version));
+    } else {
+      const isRoomExist = pendingManager.isPendingExist({ ...roomData, ...pending });
+
+      if (!isRoomExist) {
+        pendingManager.add({ ...roomData, pending })
       }
-    } catch (error) {
-      console.error("pullUpdates", error);
     }
-  };
+  } catch (error) {
+    console.error("pullUpdates", error);
+  }
+}
