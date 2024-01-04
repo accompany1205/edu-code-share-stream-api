@@ -19,6 +19,7 @@ export const getDocument = (socket: Socket) => async ({
   fileName,
   defaultFileName
 }: GetDocumentProps) => {
+  console.log("getDocument");
   const cursorName = getUniqCursorName(_cursorName);
 
   if (!updateService.isRoomExist(roomId)) {

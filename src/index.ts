@@ -179,6 +179,7 @@ io.on("connection", async (socket: Socket) => {
   socket.on(
     "pushUpdates",
     async (roomId: string, version, docUpdates, callback) => {
+      console.log("pushUpdates", roomId);
       if (!socket.rooms.has(roomId)) {
         callback(new Error("You are not allowed to access this document"));
         return;
@@ -217,6 +218,7 @@ io.on("connection", async (socket: Socket) => {
         const metadata = roomMetadata[roomId];
         const lessonCodeId = metadata?.lessonCodeId;
         const newCode = doc[roomId]?.toString();
+        console.log({ newCode });
         if (lessonCodeId && newCode !== undefined) {
           if (pendingLessonCodeUpdates[lessonCodeId.toHexString()]) {
             clearTimeout(pendingLessonCodeUpdates[lessonCodeId.toHexString()]);

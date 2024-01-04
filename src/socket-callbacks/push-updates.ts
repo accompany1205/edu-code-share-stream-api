@@ -22,6 +22,7 @@ export const pushUpdates = (io: Server, socket: Socket) => async ({
 }: PushUpdatesProps) => {
   try {
     const roomData = { roomId, fileName };
+    console.log('pushUpdates', roomData);
     const { docUpdates } = await updateService.getDocument(roomData);
 
     const pullResponseEvenet = `${SocketEvents.PullResponse}${roomId}${fileName.id}`;

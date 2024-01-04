@@ -5,7 +5,8 @@ import express, { Request, Response } from "express";
 import * as http from "http";
 
 import { SocketEvents } from "./src/socket-callbacks/events";
-import { socketCallback } from "./src/socket-callbacks"
+import { socketCallback } from "./src/socket-callbacks";
+import { ActivityManager } from "./src/activity";
 
 const app = express();
 
@@ -23,7 +24,10 @@ const io = new Server(server, {
   },
 });
 
+const activityManager = new ActivityManager(io);
+
 io.on("connection", (socket: Socket): void => {
+  // const socketActivity = activityManager.initialize(socket);
   socket.on(SocketEvents.GetDoc, socketCallback.getDocument(socket));
 
   socket.on(SocketEvents.Pull, socketCallback.pullUpdates(socket));
@@ -32,11 +36,14 @@ io.on("connection", (socket: Socket): void => {
 
   socket.on(SocketEvents.GetFileInfo, socketCallback.getFileInfo(socket));
 
-  socket.on(SocketEvents.CreateFile, socketCallback.createFile(socket))
+  socket.on(SocketEvents.CreateFile, socketCallback.createFile(socket));
 
   socket.on(SocketEvents.SetActiveFile, socketCallback.setActiveFile(socket));
 
-  socket.on(SocketEvents.AddedFileListUpdated, socketCallback.fileListUpdated(socket));
+  socket.on(
+    SocketEvents.AddedFileListUpdated,
+    socketCallback.fileListUpdated(socket),
+  );
 
   socket.on(SocketEvents.DeleteFile, socketCallback.deleteFile(socket));
 
@@ -45,6 +52,9 @@ io.on("connection", (socket: Socket): void => {
   socket.on(SocketEvents.DeleteRoom, socketCallback.deleteRoom(socket));
 
   socket.on(SocketEvents.GetCode, socketCallback.getCode(socket));
+  socket.on(SocketEvents.JoinLesson, socketCallback.joinLesson(socket, activityManager, io));
+  socket.on(SocketEvents.LeaveLesson, socketCallback.leaveLesson(socket, io));
+  socket.on(SocketEvents.ChangeStatusInLesson, socketCallback.changeStatusInLesson(socket, io));
 });
 
 const port = process.env.PORT || 8001;

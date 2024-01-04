@@ -9,6 +9,9 @@ import { deleteRoom } from "./delete-room";
 import { createFile } from "./create-file";
 import { roomExist } from "./room-exist";
 import { getCode } from "./get-code";
+import { joinLesson } from "./join-lesson";
+import { leaveLesson } from "./leave-lesson";
+import { changeStatusInLesson } from "./change-status-in-lesson";
 
 export const socketCallback = {
   fileListUpdated,
@@ -22,4 +25,7 @@ export const socketCallback = {
   deleteRoom,
   roomExist,
   getCode,
+  joinLesson,
+  leaveLesson,
+  changeStatusInLesson,
 }

@@ -22,7 +22,10 @@ export enum SocketEvents {
   GetCode = "getCode",
   GetCodeResponse = "getCodeResponse",
   CreateFile = "createFile",
-  CreateFileResponse = "createFileResponse"
+  CreateFileResponse = "createFileResponse",
+  JoinLesson = "joinLesson",
+  LeaveLesson = "leaveLesson",
+  ChangeStatusInLesson = "changeStatusInLesson",
 }
 
 export interface File {
