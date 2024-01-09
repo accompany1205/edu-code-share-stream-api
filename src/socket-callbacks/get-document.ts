@@ -6,47 +6,52 @@ import { getUniqCursorName } from "../utils/uniq-cursor-name.utils";
 import { SocketEvents, type File } from "./events";
 
 interface GetDocumentProps {
-	roomId: string
-	cursorName: string
-	fileName: File
-	preloadedCode?: string
-  defaultFileName: string
+  roomId: string;
+  cursorName: string;
+  fileName: File;
+  preloadedCode?: string;
+  defaultFileName: string;
 }
 
-export const getDocument = (socket: Socket) => async ({
-  cursorName: _cursorName,
-  roomId,
-  fileName,
-  defaultFileName
-}: GetDocumentProps) => {
-  console.log("getDocument");
-  const cursorName = getUniqCursorName(_cursorName);
-
-  if (!updateService.isRoomExist(roomId)) {
-    socket.join(roomId);
-  }
-
-  try {
-    const { docUpdates: { updates, doc } } = await updateService.getDocument({
+export const getDocument =
+  (socket: Socket) =>
+  async ({
+    cursorName: _cursorName,
+    roomId,
+    fileName,
+    defaultFileName,
+    preloadedCode = "",
+  }: GetDocumentProps) => {
+    console.log("getDocument", {
       roomId,
+      socket: socket.id,
       fileName,
-      defaultFileName
     });
+    const cursorName = getUniqCursorName(_cursorName);
 
-    const docInfo = await updateService.getCodeInfo(roomId);
+    if (!updateService.isRoomExist(roomId)) {
+      socket.join(roomId);
+    }
 
-    socket.broadcast.emit(`${SocketEvents.RoomExistResponse}${roomId}`);
-    socket.emit(
-      SocketEvents.GetDocResponse,
-      {
+    try {
+      const {
+        docUpdates: { updates, doc },
+      } = await updateService.getDocument({
+        roomId,
+        fileName,
+        defaultFileName,
+      });
+
+      const docInfo = await updateService.getCodeInfo(roomId);
+      socket.broadcast.emit(`${SocketEvents.RoomExistResponse}${roomId}`);
+      socket.emit(SocketEvents.GetDocResponse, {
         version: updates.length,
-        doc,
+        doc: preloadedCode + doc,
         cursorName,
         updates,
-        docInfo
-      }
-    );
-  } catch (error) {
-    console.log("getDocument", error);
-  }
-}
+        docInfo: { ...docInfo, htmlBody: [doc] },
+      });
+    } catch (error) {
+      console.log("getDocument", error);
+    }
+  };

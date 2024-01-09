@@ -5,6 +5,7 @@ import { pendingManager } from "../services/pending-service";
 import { SocketEvents } from "./events";
 
 export const deleteRoom = (socket: Socket) => async (roomId: string) => {
+  // console.log({ deleteRoom });
   const fileManagement = await updateService.getFileManagement(roomId);
 
   if (fileManagement != null) {
@@ -16,4 +17,4 @@ export const deleteRoom = (socket: Socket) => async (roomId: string) => {
   await updateService.deleteRoom(roomId);
   socket.broadcast.emit(`${SocketEvents.RoomDeleted}${roomId}`);
   socket.leave(roomId);
-}
+};

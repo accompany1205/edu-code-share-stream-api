@@ -161,6 +161,7 @@ export class RedisUpdateService {
     fileName,
     defaultFileName,
   }: GetDocInfo): Promise<Document> => {
+
     const isRoomExist = await this.isRoomExist(roomId);
 
     if (!isRoomExist) {

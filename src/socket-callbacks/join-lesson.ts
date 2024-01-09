@@ -6,16 +6,16 @@ export const joinLesson =
   (socket: Socket, activityManager: ActivityManager, io: Server) =>
   async (data: string) => {
     const { lesson, user } = JSON.parse(data);
-    // console.log("joinLesson", { lesson, user });
+    console.log("joinLesson", { lesson, user });
     socket.data.userId = user;
     socket.data.status = "idle";
     await socket.join(lesson);
     // console.log(socket);
     const sockets = await io.in(lesson).fetchSockets();
-    // console.log(
-    //   "sockets: ",
-    //   sockets.map((_socket) => _socket.id),
-    // );
+    console.log(
+      "sockets: ",
+      sockets.map((_socket) => _socket.id),
+    );
     try {
       io.to(lesson).emit("joinLesson_", { lesson, user });
     } catch (error) {
