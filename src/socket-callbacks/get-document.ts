@@ -11,6 +11,7 @@ interface GetDocumentProps {
   fileName: File;
   preloadedCode?: string;
   defaultFileName: string;
+  roomStep: number;
 }
 
 export const getDocument =
@@ -21,11 +22,13 @@ export const getDocument =
     fileName,
     defaultFileName,
     preloadedCode = "",
+    roomStep = 0,
   }: GetDocumentProps) => {
     console.log("getDocument", {
       roomId,
       socket: socket.id,
       fileName,
+      roomStep,
     });
     const cursorName = getUniqCursorName(_cursorName);
 
@@ -40,6 +43,7 @@ export const getDocument =
         roomId,
         fileName,
         defaultFileName,
+        roomStep,
       });
 
       const docInfo = await updateService.getCodeInfo(roomId);

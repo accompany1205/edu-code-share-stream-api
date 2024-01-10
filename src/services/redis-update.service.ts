@@ -22,6 +22,22 @@ export class RedisUpdateService {
     return Boolean(room);
   };
 
+  handleRoomStepExist = async (
+    roomId: string,
+    step: number,
+  ): Promise<void> => {
+    const roomListRes = await redis.get(roomId + "list");
+    const roomList = roomListRes ? JSON.parse(roomListRes) : [];
+    if (step > roomList.length) {
+      if (step === roomList.length + 1) {
+        await this.saveToRoomList(roomId);
+        await this.deleteRoom(roomId)
+      }
+      return;
+    }
+    await redis.set(roomId, JSON.stringify(roomList[step]));
+  };
+
   createFile = async (
     roomId: string,
     fileName: string,
@@ -68,6 +84,52 @@ export class RedisUpdateService {
     await redis.set(roomId, JSON.stringify(room));
   };
 
+  getRoomListLength = async (roomId: string): Promise<number> => {
+    const roomListRes = (await redis.get(roomId + "list")) || null;
+    if (roomListRes === null) {
+      return 0;
+    }
+    return JSON.parse(roomListRes).length;
+  };
+
+  nextItrRoom = async (roomId: string, itr: number): Promise<void> => {
+    const roomListRes = (await redis.get(roomId + "list")) || null;
+
+    if (roomListRes === null) {
+      return;
+    }
+    const roomList = JSON.parse(roomListRes);
+    if (roomList[itr + 1]) {
+      await redis.set(roomId, JSON.stringify(roomList[itr + 1]));
+    }
+  };
+
+  saveToRoomList = async (roomId: string): Promise<void> => {
+    const roomListRes = (await redis.get(roomId + "list")) || null;
+
+    const room = await redis.get(roomId);
+    if (roomListRes === null) {
+      if (room) await redis.set(roomId + "list", JSON.stringify([room]));
+      return;
+    }
+    const roomList = JSON.parse(roomListRes);
+
+    await redis.set(roomId + "list", JSON.stringify([...roomList, room]));
+  };
+
+  prevItrRoom = async (roomId: string, itr: number): Promise<void> => {
+    const roomListRes = (await redis.get(roomId + "list")) || null;
+
+    if (roomListRes == null) {
+      return;
+    }
+
+    const roomList = JSON.parse(roomListRes);
+    if (roomList[itr - 1]) {
+      redis.set(roomId, JSON.stringify(roomList[itr - 1]));
+    }
+  };
+
   getRoom = async (roomId: string): Promise<Room | null> => {
     const room = (await redis.get(roomId)) || null;
 
@@ -84,7 +146,7 @@ export class RedisUpdateService {
 
   getUpdates = async ({ roomId, fileName }: DocInfo): Promise<Document> => {
     const room = (await this.getRoom(roomId)) as Room;
-
+    console.log({ room });
     return room.codeManagement.find(
       ({ fileId }) => fileId === fileName.id,
     ) as Document;
@@ -159,8 +221,10 @@ export class RedisUpdateService {
   getDocument = async ({
     roomId,
     fileName,
-    defaultFileName,
+    defaultFileName = "index.html",
+    roomStep = 0,
   }: GetDocInfo): Promise<Document> => {
+    await this.handleRoomStepExist(roomId, roomStep);
 
     const isRoomExist = await this.isRoomExist(roomId);
 
@@ -260,6 +324,7 @@ export interface DocInfo {
 
 export interface GetDocInfo extends DocInfo {
   defaultFileName?: string;
+  roomStep?: number;
 }
 
 interface RoomInfo {
