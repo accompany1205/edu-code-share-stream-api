@@ -30,6 +30,7 @@ export const getDocument =
       fileName,
       roomStep,
     });
+
     const cursorName = getUniqCursorName(_cursorName);
 
     if (!updateService.isRoomExist(roomId)) {
@@ -37,20 +38,32 @@ export const getDocument =
     }
 
     try {
-      const {
-        docUpdates: { updates, doc },
-      } = await updateService.getDocument({
+      const docInfo = await updateService.getCodeInfo(roomId);
+      socket.broadcast.emit(`${SocketEvents.RoomExistResponse}${roomId}`);
+
+      const res = await updateService.getDocument({
         roomId,
         fileName,
         defaultFileName,
         roomStep,
       });
+      if (!res) {
+        socket.emit(SocketEvents.GetDocResponse, {
+          version: 0,
+          doc: "",
+          cursorName,
+          updates: [],
+          docInfo: { ...docInfo, htmlBody: [""] },
+        });
+        return;
+      }
+      const {
+        docUpdates: { updates, doc },
+      } = res;
 
-      const docInfo = await updateService.getCodeInfo(roomId);
-      socket.broadcast.emit(`${SocketEvents.RoomExistResponse}${roomId}`);
       socket.emit(SocketEvents.GetDocResponse, {
         version: updates.length,
-        doc: preloadedCode + doc,
+        doc: doc,
         cursorName,
         updates,
         docInfo: { ...docInfo, htmlBody: [doc] },

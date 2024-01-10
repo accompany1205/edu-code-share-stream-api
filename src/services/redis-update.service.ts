@@ -22,16 +22,13 @@ export class RedisUpdateService {
     return Boolean(room);
   };
 
-  handleRoomStepExist = async (
-    roomId: string,
-    step: number,
-  ): Promise<void> => {
+  handleRoomStepExist = async (roomId: string, step: number): Promise<void> => {
     const roomListRes = await redis.get(roomId + "list");
     const roomList = roomListRes ? JSON.parse(roomListRes) : [];
     if (step > roomList.length) {
       if (step === roomList.length + 1) {
         await this.saveToRoomList(roomId);
-        await this.deleteRoom(roomId)
+        await this.deleteRoom(roomId);
       }
       return;
     }
@@ -131,7 +128,7 @@ export class RedisUpdateService {
   };
 
   getRoom = async (roomId: string): Promise<Room | null> => {
-    const room = (await redis.get(roomId)) || null;
+    const room = await redis.get(roomId);
 
     if (room == null) {
       return null;
@@ -146,8 +143,10 @@ export class RedisUpdateService {
 
   getUpdates = async ({ roomId, fileName }: DocInfo): Promise<Document> => {
     const room = (await this.getRoom(roomId)) as Room;
-    console.log({ room });
-    return room.codeManagement.find(
+    console.log("getupdates", room);
+    console.log(room?.codeManagement);
+
+    return room.codeManagement?.find(
       ({ fileId }) => fileId === fileName.id,
     ) as Document;
   };
@@ -226,6 +225,28 @@ export class RedisUpdateService {
   }: GetDocInfo): Promise<Document> => {
     await this.handleRoomStepExist(roomId, roomStep);
 
+    const isRoomExist = await this.isRoomExist(roomId);
+
+    if (!isRoomExist) {
+      const room = this.createEmptyRoom(defaultFileName);
+      await this.setRoom({ roomId, room });
+    }
+
+    const isDocExist = await this.isDocumentExist({ roomId, fileName });
+
+    if (!isDocExist) {
+      await this.addUpdates({ roomId, fileName });
+    }
+    console.log();
+    console.log("getDocument");
+    return await this.getUpdates({ roomId, fileName });
+  };
+
+  _getDocument = async ({
+    roomId,
+    fileName,
+    defaultFileName = "index.html",
+  }: GetDocInfo): Promise<Document> => {
     const isRoomExist = await this.isRoomExist(roomId);
 
     if (!isRoomExist) {

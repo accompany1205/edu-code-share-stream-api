@@ -20,7 +20,8 @@ export const pushUpdates =
     try {
       const roomData = { roomId, fileName };
       console.log("pushUpdates", { roomId });
-      const { docUpdates } = await updateService.getDocument(roomData);
+
+      const { docUpdates } = await updateService._getDocument(roomData);
 
       const pullResponseEvenet = `${SocketEvents.PullResponse}${roomId}${fileName.id}`;
       const docUpdatedEvent = `${SocketEvents.DocUpdated}${roomId}`;

@@ -18,10 +18,11 @@ export const pullUpdates =
     try {
       const roomData = { roomId, fileName };
       console.log("pullUpdates:", { socketId, roomId });
+
       const pending = { socketId, version };
       const {
         docUpdates: { updates },
-      } = await updateService.getDocument(roomData);
+      } = await updateService._getDocument(roomData);
       const pullResponseEvent = `${SocketEvents.PullResponse}${roomId}${fileName.id}`;
 
       if (version < updates.length) {
